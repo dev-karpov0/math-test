@@ -111,8 +111,15 @@ function editor_find(module_name)
     return undefined;
 }
 
+var editor_theme_name = 'my-unique-theme123';
+function editor_is_dark()
+{
+    return editor_theme_name == 'dark';
+}
+
 function parseHTML()
 {
+    var isDarkTheme = editor_is_dark();
     var placeholderCollection = document.getElementsByTagName("python-editor");
     for(let placeholder of placeholderCollection)
     {
@@ -137,11 +144,16 @@ function parseHTML()
             continue;
         }
 
+        if(isDarkTheme)
+        {
+            module.elements.output.classList.add('editor-dark');
+        }
+
         placeholder.appendChild(module.elements.output);
         placeholder.insertBefore(module.elements.wrapper, module.elements.output);
         placeholder.insertBefore(module.elements.buttonRun, module.elements.wrapper);
 
-        module.editor = editorBundle.createEditor(module.elements.wrapper, module.predefinedStr);
+        module.editor = editorBundle.createEditor(module.elements.wrapper, module.predefinedStr, isDarkTheme);
 
         module.initialized = true;
     }
@@ -283,23 +295,32 @@ function editor_change_theme(dark)
     let effect = editorBundle.toggleEditorTheme(dark);
     for (mod of moduleArray)
     {
-        mod.editor.dispatch({
-            effects: effect
-        });
+        if(mod.initialized)
+        {
+            mod.editor.dispatch({
+                effects: effect
+            });
+        }
     }
 
     if(dark)
     {
         for (mod of moduleArray)
         {
-            mod.elements.output.classList.add('editor-dark');
+            if(mod.initialized)
+            {
+                mod.elements.output.classList.add('editor-dark');
+            }
         }
     }
     else
     {
         for (mod of moduleArray)
         {
-            mod.elements.output.classList.remove('editor-dark');
+            if(mod.initialized)
+            {
+                mod.elements.output.classList.remove('editor-dark');
+            }
         }
     }
 }
@@ -312,7 +333,6 @@ function toggleEditorTheme()
     editor_change_theme(isDark);
 }
 
-var editor_theme_name = 'my-unique-theme123';
 setInterval(() => {
     let theme_name = document.documentElement.dataset.theme;
     if(theme_name != undefined && theme_name != editor_theme_name)
