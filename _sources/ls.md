@@ -263,6 +263,7 @@ print(lst * 3)
 Используйте модель линейной регрессии для прогнозирования и вычислите
 коэффициенты регрессии $c_1, c_0$.
 
-<python-editor module-name="ls_task1"></python-editor>
+<!-- <python-editor module-name="ls_task1"></python-editor> -->
+
 
 </div>
