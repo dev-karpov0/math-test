@@ -263,36 +263,6 @@ print(lst * 3)
 Используйте модель линейной регрессии для прогнозирования и вычислите
 коэффициенты регрессии $c_1, c_0$.
 
-<!-- Pyodide -->
-<!-- <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script> -->
-<script>
-    // Устанавливаем модули питона, которые используются во всех редакторах данной страницы
-    // Повторять названия пакетов не нужно
-    // Пример: pythonPackages = ["numpy", "scipy"];
-    //installPythonPackages(["numpy", "scipy"]);
-    pythonPackages = ["numpy", "scipy"];
-</script>
+<python-editor module-name="ls_task1"></python-editor>
 
-
-<script src="js/pyodide_api.js"></script>
-
-
-<!-- Editor API -->
-<link rel="stylesheet" href="styles/editor_styles.css"/>
-<script src="js/editor_api.js" defer></script>
-<script src="js/editor.bundle.js" defer></script>
-
-<!-- Task test functions -->
-<script src="js/tests/Task1.js" defer></script>
-
-<div class="exercise-window" test-func="Task1">
-  <div class="editor-wrapper"></div>
-  <button class="exercise-window__button">Run</button>
-  <div class="editor-output"></div>
-  <div class="exercise-window__predefined">
-import numpy as np
-from scipy.linalg import solve
-X = np.array([22, 19, 11, 7, 13, 20, 8, 12, 15, 23])
-Y = np.array([45, 42, 23, 23, 23, 39, 19, 21, 28, 65])
-n = len(X)</div>
 </div>

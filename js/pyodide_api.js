@@ -1,43 +1,55 @@
 
-// let interruptBuffer = new Uint8Array(new SharedArrayBuffer(1));
 
-
-async function initPyodide() {
+async function pyodide_init() {
+    //console.log("Starting...");
     let pyodide = await loadPyodide();
+    //console.log("Pyodide loaded");
+    
     // interruptBuffer[0] = 0;
     // pyodide.setInterruptBuffer(interruptBuffer);
-    
-    //Load micropip package manager
-    //await pyodide.loadPackage("micropip");
-    await pyodide.loadPackage(pythonPackages);
+
     return pyodide;
 }
 
-let pyodideReadyPromise = initPyodide();
+// let pyodideReadyPromise = pyodide_init();
 
-async function setPyodideStdout(cb)
+async function pyodide_load_packages(pyodideReadyPromise, package_names)
+{
+    let pyodide = await pyodideReadyPromise;
+    await pyodide.loadPackage(package_names);
+}
+
+async function pyodide_load_packages_from_code(pyodideReadyPromise, code)
+{
+    let pyodide = await pyodideReadyPromise;
+    await pyodide.loadPackagesFromImports(code);
+}
+
+async function pyodide_set_stdout(pyodideReadyPromise, cb)
 {
     let pyodide = await pyodideReadyPromise;
     pyodide.setStdout({batched: cb});
 }
 
-async function installPythonPackages(packageNames)
+async function pyodide_set_stdin(pyodideReadyPromise, cb)
 {
     let pyodide = await pyodideReadyPromise;
-    const micropip = pyodide.pyimport("micropip");
-    for(pn of packageNames)
-    {
-        micropip.install(pn);
-    }
+    pyodide.setStdin({stdin: cb});
 }
 
-async function evaluatePython(codeString, cb) {
-    let pyodide = await pyodideReadyPromise;
+function pyodide_evaluate_python(pyodide, codeString) {
+    var result = {
+        out: '',
+        hasError: false
+    };
+
     try {
-        let userOutput = pyodide.runPython(codeString);
-        cb(userOutput, false);
+        result.out = pyodide.runPython(codeString);
 
     } catch (err) {
-        cb(err, true);
+        result.hasError = true;
+        result.out = err;
     }
+
+    return result;
 }

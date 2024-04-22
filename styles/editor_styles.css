@@ -1,27 +1,58 @@
 
+.editor-dark {
+
+}
+
 .editor-wrapper {
     width: 800px;
-    height: 600px;
+    height: 400px;
+    background-color: white;
 }
 
 .editor-output {
-    border: 1px gray solid;
-    border-radius: 6px;
+    border: 1px black solid;
+    border-radius: 3px;
     height: 100px;
+    width: 800px;
+    display: block;
+    background-color: white;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin: 0;
 }
 
-.exercise-window {
-
+.editor-output.editor-dark
+{
+    border: 1px grey solid;
+    background-color: black;
 }
 
-.exercise-window__button {
-
+.editor-output>span {
+    display: block;
 }
 
-.exercise-window__predefined {
-    color: transparent;
+.editor-output.editor-dark > span {
+    display: block;
+    color: white;
+}
+
+python-editor {
+    display: block;
+}
+
+.editor-button-run {
+    background-color: #31d100;
+    font-size: 16px;
+    width: 50px;
+    height: 30px;
+    border: none;
+    border-radius: 5px;
 }
 
 .cm-editor {
     height: 100%;
 }
+
+/* body {
+    background-color: darkslategray;
+} */
