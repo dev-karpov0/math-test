@@ -58,25 +58,34 @@ function convert_to_string(stdin_value)
     {
         return stdin_value.toString();
     }
+
+    return undefined;
 }
 
 function editor_run_python(editor, stdin_value)
 {
-    if(Array.isArray(stdin_value))
+    if(stdin_value != undefined)
     {
-        editor.stdin = stdin_value.map(convert_to_string);
+        if(Array.isArray(stdin_value))
+        {
+            editor.stdin = stdin_value.map(convert_to_string);
+        }
+        else
+        {
+            editor.stdin = [ convert_to_string(stdin_value) ];
+        }
     }
     else
     {
-        editor.stdin = [ convert_to_string(stdin_value) ];
+        editor.stdin.length = 0;
     }
 
     editor.stdout.length = 0;
+    editor.stdin_call_count = 0;
 
     let codeStr = editor_get_string(editor);
     let result = pyodide_evaluate_python(editor.pyodide, codeStr);
 
-    editor.stdin_call_count = 0;
     editor.stdin.length = 0;
     return result;
 }
