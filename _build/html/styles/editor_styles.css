@@ -4,7 +4,7 @@
 }
 
 .editor-wrapper {
-    width: 800px;
+    width: 100%;
     height: 400px;
     background-color: white;
 }
@@ -13,7 +13,7 @@
     border: 1px black solid;
     border-radius: 3px;
     height: 100px;
-    width: 800px;
+    width: 100%;
     display: block;
     background-color: white;
     overflow-y: auto;
@@ -52,7 +52,3 @@ python-editor {
 .cm-editor {
     height: 100%;
 }
-
-/* body {
-    background-color: darkslategray;
-} */

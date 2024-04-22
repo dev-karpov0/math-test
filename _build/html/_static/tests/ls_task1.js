@@ -1,7 +1,9 @@
 
 (() => {
 
-/* Название модуля тестирования. Должно строго совпадать с атрибутом module-name тега python-editor*/
+/*  Название модуля тестирования. 
+    Должно строго совпадать с атрибутом module-name тега python-editor
+*/
 const module_name = "ls_task1";
 let editor = editor_create(module_name);
 
@@ -13,11 +15,19 @@ let editor = editor_create(module_name);
 editor_set_string(editor, 
 `import numpy as np
 from scipy.linalg import solve
+
+# Исходные данные
 X = np.array([22, 19, 11, 7, 13, 20, 8, 12, 15, 23])
 Y = np.array([45, 42, 23, 23, 23, 39, 19, 21, 28, 65])
-n = len(X)`);
+n = len(X)
+
+# Продолжите...
+`);
 
 
+/*
+    Функция-callback, вызывается при нажатии кнопки Run
+*/
 function OnClickRun() 
 {
     /* Очищаем окно вывода */
@@ -54,13 +64,11 @@ function OnClickRun()
     editor_output_add_line(editor, "Результат неверный!");
 };
 
+
+/*
+    Регистрация callback-функции OnClickkRun
+*/
 editor_register_run_callback(editor, OnClickRun);
-
-
-
-
-
-
 
 
 
