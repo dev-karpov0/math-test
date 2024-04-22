@@ -1,4 +1,4 @@
-(function () {
+var editorBundle = (function (exports) {
    'use strict';
 
    /**
@@ -4279,6 +4279,9 @@
                return index;
        }
    }
+   function isBlockElement(node) {
+       return node.nodeType == 1 && /^(DIV|P|LI|UL|OL|BLOCKQUOTE|DD|DT|H\d|SECTION|PRE)$/.test(node.nodeName);
+   }
    function scanFor(node, off, targetNode, targetOff, dir) {
        for (;;) {
            if (node == targetNode && off == targetOff)
@@ -4559,6 +4562,46 @@
    }
    function isScrolledToBottom(elt) {
        return elt.scrollTop > Math.max(1, elt.scrollHeight - elt.clientHeight - 4);
+   }
+   function textNodeBefore(startNode, startOffset) {
+       for (let node = startNode, offset = startOffset;;) {
+           if (node.nodeType == 3 && offset > 0) {
+               return { node: node, offset: offset };
+           }
+           else if (node.nodeType == 1 && offset > 0) {
+               if (node.contentEditable == "false")
+                   return null;
+               node = node.childNodes[offset - 1];
+               offset = maxOffset(node);
+           }
+           else if (node.parentNode && !isBlockElement(node)) {
+               offset = domIndex(node);
+               node = node.parentNode;
+           }
+           else {
+               return null;
+           }
+       }
+   }
+   function textNodeAfter(startNode, startOffset) {
+       for (let node = startNode, offset = startOffset;;) {
+           if (node.nodeType == 3 && offset < node.nodeValue.length) {
+               return { node: node, offset: offset };
+           }
+           else if (node.nodeType == 1 && offset < node.childNodes.length) {
+               if (node.contentEditable == "false")
+                   return null;
+               node = node.childNodes[offset];
+               offset = 0;
+           }
+           else if (node.parentNode && !isBlockElement(node)) {
+               offset = domIndex(node) + 1;
+               node = node.parentNode;
+           }
+           else {
+               return null;
+           }
+       }
    }
 
    class DOMPos {
@@ -6882,6 +6925,7 @@
            this.hasComposition = null;
            this.markedForComposition = new Set;
            this.compositionBarrier = Decoration.none;
+           this.lastCompositionAfterCursor = false;
            // Track a minimum width for the editor. When measuring sizes in
            // measureVisibleLineHeights, this is updated to point at the width
            // of a given element and its extent in the document. When a change
@@ -7098,7 +7142,7 @@
                        if (browser.gecko) {
                            let nextTo = nextToUneditable(anchor.node, anchor.offset);
                            if (nextTo && nextTo != (1 /* NextTo.Before */ | 2 /* NextTo.After */)) {
-                               let text = nearbyTextNode(anchor.node, anchor.offset, nextTo == 1 /* NextTo.Before */ ? 1 : -1);
+                               let text = (nextTo == 1 /* NextTo.Before */ ? textNodeBefore : textNodeAfter)(anchor.node, anchor.offset);
                                if (text)
                                    anchor = new DOMPos(text.node, text.offset);
                            }
@@ -7466,7 +7510,23 @@
    }
    function findCompositionNode(view, headPos) {
        let sel = view.observer.selectionRange;
-       let textNode = sel.focusNode && nearbyTextNode(sel.focusNode, sel.focusOffset, 0);
+       if (!sel.focusNode)
+           return null;
+       let textBefore = textNodeBefore(sel.focusNode, sel.focusOffset);
+       let textAfter = textNodeAfter(sel.focusNode, sel.focusOffset);
+       let textNode = textBefore || textAfter;
+       if (textAfter && textBefore && textAfter.node != textBefore.node) {
+           let descAfter = ContentView.get(textAfter.node);
+           if (!descAfter || descAfter instanceof TextView && descAfter.text != textAfter.node.nodeValue) {
+               textNode = textAfter;
+           }
+           else if (view.docView.lastCompositionAfterCursor) {
+               let descBefore = ContentView.get(textBefore.node);
+               if (!(!descBefore || descBefore instanceof TextView && descBefore.text != textBefore.node.nodeValue))
+                   textNode = textAfter;
+           }
+       }
+       view.docView.lastCompositionAfterCursor = textNode != textBefore;
        if (!textNode)
            return null;
        let from = headPos - textNode.offset;
@@ -7500,33 +7560,6 @@
            else
                return null;
        }
-   }
-   function nearbyTextNode(startNode, startOffset, side) {
-       if (side <= 0)
-           for (let node = startNode, offset = startOffset;;) {
-               if (node.nodeType == 3)
-                   return { node: node, offset: offset };
-               if (node.nodeType == 1 && offset > 0) {
-                   node = node.childNodes[offset - 1];
-                   offset = maxOffset(node);
-               }
-               else {
-                   break;
-               }
-           }
-       if (side >= 0)
-           for (let node = startNode, offset = startOffset;;) {
-               if (node.nodeType == 3)
-                   return { node: node, offset: offset };
-               if (node.nodeType == 1 && offset < node.childNodes.length && side >= 0) {
-                   node = node.childNodes[offset];
-                   offset = 0;
-               }
-               else {
-                   break;
-               }
-           }
-       return null;
    }
    function nextToUneditable(node, offset) {
        if (node.nodeType != 1)
@@ -8756,6 +8789,10 @@
            // keyboard.
            view.observer.flushSoon();
        }
+       // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
+       if (browser.safari && event.inputType == "insertText" && view.inputState.composing >= 0) {
+           setTimeout(() => observers.compositionend(view, event), 20);
+       }
        return false;
    };
    const appliedFirefoxHack = /*@__PURE__*/new Set;
@@ -9117,7 +9154,8 @@
        blockAt(height, oracle, top, offset) {
            let { firstLine, lastLine, perLine, perChar } = this.heightMetrics(oracle, offset);
            if (oracle.lineWrapping) {
-               let guess = offset + Math.round(Math.max(0, Math.min(1, (height - top) / this.height)) * this.length);
+               let guess = offset + (height < oracle.lineHeight ? 0
+                   : Math.round(Math.max(0, Math.min(1, (height - top) / this.height)) * this.length));
                let line = oracle.doc.lineAt(guess), lineHeight = perLine + line.length * perChar;
                let lineTop = Math.max(top, height - lineHeight / 2);
                return new BlockInfo(line.from, line.length, lineTop, lineHeight, 0);
@@ -10452,9 +10490,6 @@
            offset = domIndex(node) + 1;
            node = node.parentNode;
        }
-   }
-   function isBlockElement(node) {
-       return node.nodeType == 1 && /^(DIV|P|LI|UL|OL|BLOCKQUOTE|DD|DT|H\d|SECTION|PRE)$/.test(node.nodeName);
    }
    class DOMPoint {
        constructor(node, offset) {
@@ -26580,6 +26615,7 @@
                /*@__PURE__*/indentNodeProp.add({
                    Body: context => { var _a; return (_a = indentBody(context, context.node)) !== null && _a !== void 0 ? _a : context.continue(); },
                    IfStatement: cx => /^\s*(else:|elif )/.test(cx.textAfter) ? cx.baseIndent : cx.continue(),
+                   "ForStatement WhileStatement": cx => /^\s*else:/.test(cx.textAfter) ? cx.baseIndent : cx.continue(),
                    TryStatement: cx => /^\s*(except |finally:|else:)/.test(cx.textAfter) ? cx.baseIndent : cx.continue(),
                    "TupleExpression ComprehensionExpression ParamList ArgList ParenthesizedExpression": /*@__PURE__*/delimitedIndent({ closing: ")" }),
                    "DictionaryExpression DictionaryComprehensionExpression SetExpression SetComprehensionExpression": /*@__PURE__*/delimitedIndent({ closing: "}" }),
@@ -26630,16 +26666,163 @@
        ]);
    }
 
-   let windowArray = getWindowArray();
-   for(let el of windowArray)
-   {
-       let editor = new EditorView({
-           extensions: [basicSetup, python()],
-           parent: el.wrapper,
-           doc: el.predefinedCode
-       });
+   // Using https://github.com/one-dark/vscode-one-dark-theme/ as reference for the colors
+   const chalky = "#e5c07b", coral = "#e06c75", cyan = "#56b6c2", invalid = "#ffffff", ivory = "#abb2bf", stone = "#7d8799", // Brightened compared to original to increase contrast
+   malibu = "#61afef", sage = "#98c379", whiskey = "#d19a66", violet = "#c678dd", darkBackground = "#21252b", highlightBackground = "#2c313a", background = "#282c34", tooltipBackground = "#353a42", selection = "#3E4451", cursor = "#528bff";
+   /**
+   The editor theme styles for One Dark.
+   */
+   const oneDarkTheme = /*@__PURE__*/EditorView.theme({
+       "&": {
+           color: ivory,
+           backgroundColor: background
+       },
+       ".cm-content": {
+           caretColor: cursor
+       },
+       ".cm-cursor, .cm-dropCursor": { borderLeftColor: cursor },
+       "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": { backgroundColor: selection },
+       ".cm-panels": { backgroundColor: darkBackground, color: ivory },
+       ".cm-panels.cm-panels-top": { borderBottom: "2px solid black" },
+       ".cm-panels.cm-panels-bottom": { borderTop: "2px solid black" },
+       ".cm-searchMatch": {
+           backgroundColor: "#72a1ff59",
+           outline: "1px solid #457dff"
+       },
+       ".cm-searchMatch.cm-searchMatch-selected": {
+           backgroundColor: "#6199ff2f"
+       },
+       ".cm-activeLine": { backgroundColor: "#6699ff0b" },
+       ".cm-selectionMatch": { backgroundColor: "#aafe661a" },
+       "&.cm-focused .cm-matchingBracket, &.cm-focused .cm-nonmatchingBracket": {
+           backgroundColor: "#bad0f847"
+       },
+       ".cm-gutters": {
+           backgroundColor: background,
+           color: stone,
+           border: "none"
+       },
+       ".cm-activeLineGutter": {
+           backgroundColor: highlightBackground
+       },
+       ".cm-foldPlaceholder": {
+           backgroundColor: "transparent",
+           border: "none",
+           color: "#ddd"
+       },
+       ".cm-tooltip": {
+           border: "none",
+           backgroundColor: tooltipBackground
+       },
+       ".cm-tooltip .cm-tooltip-arrow:before": {
+           borderTopColor: "transparent",
+           borderBottomColor: "transparent"
+       },
+       ".cm-tooltip .cm-tooltip-arrow:after": {
+           borderTopColor: tooltipBackground,
+           borderBottomColor: tooltipBackground
+       },
+       ".cm-tooltip-autocomplete": {
+           "& > ul > li[aria-selected]": {
+               backgroundColor: highlightBackground,
+               color: ivory
+           }
+       }
+   }, { dark: true });
+   /**
+   The highlighting style for code in the One Dark theme.
+   */
+   const oneDarkHighlightStyle = /*@__PURE__*/HighlightStyle.define([
+       { tag: tags.keyword,
+           color: violet },
+       { tag: [tags.name, tags.deleted, tags.character, tags.propertyName, tags.macroName],
+           color: coral },
+       { tag: [/*@__PURE__*/tags.function(tags.variableName), tags.labelName],
+           color: malibu },
+       { tag: [tags.color, /*@__PURE__*/tags.constant(tags.name), /*@__PURE__*/tags.standard(tags.name)],
+           color: whiskey },
+       { tag: [/*@__PURE__*/tags.definition(tags.name), tags.separator],
+           color: ivory },
+       { tag: [tags.typeName, tags.className, tags.number, tags.changed, tags.annotation, tags.modifier, tags.self, tags.namespace],
+           color: chalky },
+       { tag: [tags.operator, tags.operatorKeyword, tags.url, tags.escape, tags.regexp, tags.link, /*@__PURE__*/tags.special(tags.string)],
+           color: cyan },
+       { tag: [tags.meta, tags.comment],
+           color: stone },
+       { tag: tags.strong,
+           fontWeight: "bold" },
+       { tag: tags.emphasis,
+           fontStyle: "italic" },
+       { tag: tags.strikethrough,
+           textDecoration: "line-through" },
+       { tag: tags.link,
+           color: stone,
+           textDecoration: "underline" },
+       { tag: tags.heading,
+           fontWeight: "bold",
+           color: coral },
+       { tag: [tags.atom, tags.bool, /*@__PURE__*/tags.special(tags.variableName)],
+           color: whiskey },
+       { tag: [tags.processingInstruction, tags.string, tags.inserted],
+           color: sage },
+       { tag: tags.invalid,
+           color: invalid },
+   ]);
 
-       el.editor = editor;
+   const oneDarkCustom = [
+       oneDarkTheme, 
+       highlightSpecialChars(),
+       highlightActiveLine(),
+       highlightSelectionMatches(),
+       rectangularSelection(),
+       crosshairCursor(),
+       indentOnInput(),
+       dropCursor(),
+       history(),
+       drawSelection(),
+       syntaxHighlighting(oneDarkHighlightStyle),
+       lineNumbers(),
+       foldGutter(),
+       bracketMatching(),
+       closeBrackets(),
+       autocompletion(),
+       EditorState.allowMultipleSelections.of(true),
+       keymap.of([
+           ...closeBracketsKeymap,
+           ...defaultKeymap,
+           ...searchKeymap,
+           ...historyKeymap,
+           ...foldKeymap,
+           ...completionKeymap,
+           ...lintKeymap
+       ])
+   ];
+
+   /*
+   Compartment - один на всех?
+   */
+
+   const editorTheme = new Compartment();
+
+   function toggleEditorTheme(dark)
+   {
+       return editorTheme.reconfigure(dark ? oneDarkCustom : basicSetup);
    }
 
-})();
+   function createEditor(parentEl, codeStr, dark)
+   {
+       let editor = new EditorView({
+           extensions: [python(), editorTheme.of(dark ? oneDarkCustom : basicSetup)],
+           parent: parentEl,
+           doc: codeStr
+       });
+       
+       return editor;
+   }
+
+   exports.createEditor = createEditor;
+   exports.toggleEditorTheme = toggleEditorTheme;
+
+   return exports;
+
+})({});
