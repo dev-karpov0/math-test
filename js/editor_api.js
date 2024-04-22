@@ -21,14 +21,15 @@ async function onClickRun(e)
     let editor = moduleArray[editorID];
     if(!editor.runing)
     {
+        editor_output_add_line(editor, "Wait...");
+        
         editor.pyodide = await editor.pyodideReadyPromise;
         
         let codeStr = editor_get_string(editor);
         await pyodide_load_packages_from_code(editor.pyodideReadyPromise, codeStr);
 
         editor.running = true;
-        editor_output_add_line(editor, "Wait...");
-
+        
         let func = editor.runCallback;
         if (func != undefined)
         {
